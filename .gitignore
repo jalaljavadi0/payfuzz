@@ -1,0 +1,12 @@
+node_modules/
+coverage/
+*.log
+
+# PayFuzz only ever writes a report next to the run
+payfuzz-report.md
+payfuzz-report.json
+
+.env
+.env.*
+
+.DS_Store

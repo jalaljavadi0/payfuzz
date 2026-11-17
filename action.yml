@@ -1,0 +1,28 @@
+name: 'PayFuzz'
+description: 'Fuzz and simulate attacks on your payment logic — safely, in CI.'
+author: 'PayFuzz'
+branding:
+  icon: 'shield'
+  color: 'blue'
+inputs:
+  config-path:
+    description: 'Path to .payfuzz.yml'
+    required: false
+    default: '.payfuzz.yml'
+  fail-on:
+    description: 'Fail the job on: none | low | medium | high'
+    required: false
+    default: 'high'
+  comment-on-pr:
+    description: 'Post report as PR comment'
+    required: false
+    default: 'true'
+outputs:
+  report-path:
+    description: 'Path to generated report'
+runs:
+  using: 'node20'
+  main: 'dist/index.js'
+permissions:
+  contents: read
+  pull-requests: write
