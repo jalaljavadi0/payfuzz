@@ -66,11 +66,17 @@ export function isAsyncContext(node: Node): boolean {
 
 /**
  * Targets that are not a local accumulator: an object property (`account.balance`) or a file-level
- * variable. `let total = 0; total += price` inside one function is not a race by itself.
+ * variable. `let total = 0; total += price` inside one function is not a race by itself, so a local
+ * declaration must never satisfy this check.
  */
 export function isSharedTarget(node: Node): boolean {
   const target = unwrap(node);
   if (Node.isPropertyAccessExpression(target)) return true;
   if (!Node.isIdentifier(target)) return false;
-  return target.getSourceFile().getVariableDeclaration(target.getText()) !== undefined;
+
+  const name = target.getText();
+  return target
+    .getSourceFile()
+    .getVariableDeclarations()
+    .some((declaration) => declaration.getName() === name && enclosingFunction(declaration) === undefined);
 }

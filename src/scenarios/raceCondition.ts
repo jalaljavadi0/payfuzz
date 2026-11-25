@@ -1,4 +1,12 @@
-import { Node, SyntaxKind, type BinaryExpression, type CallExpression, type IfStatement } from 'ts-morph';
+import {
+  Node,
+  SyntaxKind,
+  type BinaryExpression,
+  type CallExpression,
+  type IfStatement,
+  type SourceFile,
+} from 'ts-morph';
+import { isMonetaryIdentifier } from '../detectors/patterns';
 import type { Finding, Scenario, ScenarioContext, Severity } from '../types';
 import { positionOf, snippetOf, unwrap } from '../utils/ast';
 import { compareFindings } from '../utils/findings';
@@ -87,6 +95,11 @@ export function analyzeRaceConditions(context: ScenarioContext): Finding[] {
 }
 
 function findReadModifyWrites(context: ScenarioContext): Finding[] {
+  return dedupe([...findDirectReadModifyWrites(context), ...findIndirectReadModifyWrites(context)]);
+}
+
+/** `account.balance -= amount` — the write goes straight into the shared field. */
+function findDirectReadModifyWrites(context: ScenarioContext): Finding[] {
   const { sourceFile } = context;
   const findings: Finding[] = [];
 
@@ -182,6 +195,196 @@ function findStaleReads(context: ScenarioContext): Finding[] {
   }
 
   return findings;
+}
+
+interface Derivation {
+  name: string;
+  node: Node;
+  /** The shared balance or amount this local variable was computed from. */
+  source: string;
+}
+
+const SCOPE_KINDS = [
+  SyntaxKind.FunctionDeclaration,
+  SyntaxKind.FunctionExpression,
+  SyntaxKind.ArrowFunction,
+  SyntaxKind.MethodDeclaration,
+] as const;
+
+/**
+ * `const nextBalance = account.balance - amount; await accounts.update({ balance: nextBalance })`.
+ *
+ * The old shape only looked at assignments to properties and module-level variables, so a balance
+ * that was copied into a local, recomputed and written back through a function call slipped
+ * through. The local accumulator case must keep working: `let total = 0; total += price` follows no
+ * shared read, so it is never treated as a balance.
+ */
+function findIndirectReadModifyWrites(context: ScenarioContext): Finding[] {
+  const { sourceFile } = context;
+  const findings: Finding[] = [];
+
+  for (const scope of scopesOf(sourceFile)) {
+    const tainted = new Map<string, string>();
+    const derivations = new Map<string, Derivation>();
+
+    for (const declaration of scope.getDescendantsOfKind(SyntaxKind.VariableDeclaration)) {
+      if (!inScope(declaration, scope, sourceFile)) continue;
+      const nameNode = declaration.getNameNode();
+      if (!Node.isIdentifier(nameNode)) continue;
+
+      const initializer = declaration.getInitializer();
+      if (initializer === undefined) continue;
+
+      const name = declaration.getName();
+      const source =
+        sharedMoneySource(initializer, tainted) ??
+        (isMonetaryIdentifier(name) && containsAwait(initializer) ? name : undefined);
+      if (source === undefined) continue;
+
+      tainted.set(name, source);
+      if (containsArithmetic(initializer)) {
+        derivations.set(name, { name, node: declaration, source });
+      }
+    }
+
+    for (const expression of scope.getDescendantsOfKind(SyntaxKind.BinaryExpression)) {
+      if (!inScope(expression, scope, sourceFile)) continue;
+
+      const operator = expression.getOperatorToken().getKind();
+      const isPlainAssignment = operator === SyntaxKind.EqualsToken;
+      const isCompoundAssignment =
+        operator === SyntaxKind.PlusEqualsToken || operator === SyntaxKind.MinusEqualsToken;
+      if (!isPlainAssignment && !isCompoundAssignment) continue;
+
+      const target = unwrap(expression.getLeft());
+      if (!Node.isIdentifier(target) || isSharedTarget(target)) continue;
+
+      const name = target.getText();
+      const source = isPlainAssignment
+        ? sharedMoneySource(expression.getRight(), tainted)
+        : tainted.get(name);
+      if (source === undefined) continue;
+
+      tainted.set(name, source);
+      if (isPlainAssignment && containsArithmetic(expression.getRight())) {
+        derivations.set(name, { name, node: expression, source });
+      }
+    }
+
+    const reported = new Set<string>();
+    for (const derivation of derivations.values()) {
+      const write = firstWriteBack(scope, derivation, sourceFile);
+      if (write === undefined) continue;
+
+      const key = `${String(derivation.node.getStartLineNumber())}:${String(write.getStartLineNumber())}`;
+      if (reported.has(key)) continue;
+      reported.add(key);
+
+      findings.push(
+        toFinding(
+          write,
+          READ_MODIFY_WRITE,
+          context,
+          isAsyncContext(write) ? 'high' : READ_MODIFY_WRITE.baseSeverity,
+          `\`${derivation.source}\` is read into \`${derivation.name}\` and written back through \`${calleeText(write)}\`: two requests can read the same value and the later write erases the earlier one`,
+        ),
+      );
+    }
+  }
+
+  return findings;
+}
+
+function scopesOf(sourceFile: SourceFile): Node[] {
+  const scopes: Node[] = [sourceFile];
+  for (const kind of SCOPE_KINDS) scopes.push(...sourceFile.getDescendantsOfKind(kind));
+  return scopes;
+}
+
+function inScope(node: Node, scope: Node, sourceFile: SourceFile): boolean {
+  const owner = enclosingFunction(node);
+  return scope === sourceFile ? owner === undefined : owner === scope;
+}
+
+/** The shared money name this expression reads, following one local copy at a time. */
+function sharedMoneySource(node: Node, tainted: ReadonlyMap<string, string>): string | undefined {
+  const sourceOf = (candidate: Node): string | undefined => {
+    const value = unwrap(candidate);
+    if (Node.isIdentifier(value)) {
+      const name = value.getText();
+      const derived = tainted.get(name);
+      if (derived !== undefined) return derived;
+      return isMonetaryIdentifier(name) && isSharedTarget(value) ? name : undefined;
+    }
+    if (Node.isPropertyAccessExpression(value)) {
+      const name = value.getName();
+      return isMonetaryIdentifier(name) ? name : undefined;
+    }
+    return undefined;
+  };
+
+  const direct = sourceOf(node);
+  if (direct !== undefined) return direct;
+
+  let found: string | undefined;
+  node.forEachDescendant((descendant, traversal) => {
+    if (found !== undefined) {
+      traversal.stop();
+      return;
+    }
+    const source = sourceOf(descendant);
+    if (source !== undefined) {
+      found = source;
+      traversal.stop();
+    }
+  });
+  return found;
+}
+
+function containsAwait(node: Node): boolean {
+  return (
+    Node.isAwaitExpression(node) ||
+    node.getFirstDescendantByKind(SyntaxKind.AwaitExpression) !== undefined
+  );
+}
+
+function firstWriteBack(
+  scope: Node,
+  derivation: Derivation,
+  sourceFile: SourceFile,
+): CallExpression | undefined {
+  return scope.getDescendantsOfKind(SyntaxKind.CallExpression).find((call) => {
+    if (!inScope(call, scope, sourceFile)) return false;
+    if (call.getStart() <= derivation.node.getEnd()) return false;
+    if (!WRITE_CALL.test(calleeText(call))) return false;
+    return writesBack(call, derivation.name);
+  });
+}
+
+/** Does the call put this local value into a monetary field? */
+function writesBack(call: CallExpression, name: string): boolean {
+  const writesMoneyProperty = call
+    .getArguments()
+    .some((argument) => hasMonetaryProperty(argument, name));
+  if (writesMoneyProperty) return true;
+
+  const calleeName = calleeText(call).replace(/[^A-Za-z0-9_$]/g, '');
+  return (
+    isMonetaryIdentifier(calleeName) && call.getArguments().some((argument) => readsName(argument, name))
+  );
+}
+
+function hasMonetaryProperty(node: Node, name: string): boolean {
+  for (const property of node.getDescendantsOfKind(SyntaxKind.PropertyAssignment)) {
+    if (!isMonetaryIdentifier(property.getName())) continue;
+    const value = property.getInitializer();
+    if (value !== undefined && readsName(value, name)) return true;
+  }
+  for (const shorthand of node.getDescendantsOfKind(SyntaxKind.ShorthandPropertyAssignment)) {
+    const key = shorthand.getName();
+    if (key === name && isMonetaryIdentifier(key)) return true;
+  }
+  return false;
 }
 
 function containsArithmetic(node: Node): boolean {

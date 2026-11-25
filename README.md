@@ -16,7 +16,7 @@ _Before the attacker, break your own payment logic._
 
 A payment-logic fuzzer and attack simulator that runs in your CI — never touches real money, real keys, or your wallet.
 
-> **Status:** Phase 3 of the MVP — payment-file detection, all three scenarios (float drift, race condition, negative/overflow amount) and the Markdown report work. Configuration, CLI and tests land in the next phases.
+> **Status:** Phase 4 of the MVP — payment-file detection, all three scenarios (float drift, race condition, negative/overflow amount), `.payfuzz.yml` and the local CLI work. Tests, the bundled `dist/` and the Action wiring land in the next phases.
 
 ---
 
@@ -107,30 +107,56 @@ on integers. Format only at the edge: `(amountCents / 100).toFixed(2)`.
 | Scenario | What it catches | Rules |
 | --- | --- | --- |
 | Floating point drift | `0.1 + 0.2` style arithmetic on money, and `===` on amounts | `PF-FLOAT-001` decimal literal arithmetic · `PF-FLOAT-002` money arithmetic · `PF-FLOAT-003` exact equality |
-| Race condition | Two concurrent transactions on one balance: read-modify-write, check-then-act, and a balance read before an `await` and written back after it | `PF-RACE-001` · `PF-RACE-002` · `PF-RACE-003` |
+| Race condition | Two concurrent transactions on one balance: read-modify-write (directly or through a local variable written back by a function call), check-then-act, and a balance read before an `await` and written back after it | `PF-RACE-001` · `PF-RACE-002` · `PF-RACE-003` |
 | Negative / overflow amount | Unvalidated amounts reaching money code, and literals that already lost precision | `PF-OVERFLOW-001` unguarded amount · `PF-OVERFLOW-002` unsafe literal · `PF-OVERFLOW-003` unvalidated parse |
 
 Python support (tree-sitter) is a post-MVP phase; the MVP parses TypeScript/JavaScript with `ts-morph`.
 
 ## 6. Configuration (`.payfuzz.yml`)
 
+Every key is optional. Without a file PayFuzz auto-detects payment files and enables all three scenarios at `medium` sensitivity.
+
 ```yaml
-# Draft shape — implemented in Phase 4.
-payment_paths:
-  - src/payments/**
-  - src/wallet/**
-scenarios:
+payment_paths: # scan only these paths instead of auto-detecting
+  - src/payments
+  - src/wallet/checkout.ts
+scenarios: # turn a scenario off without touching your code
   race_condition: true
   float_drift: true
-  overflow_amount: true
-sensitivity: medium
+  overflow_amount: false
+sensitivity: medium # low | medium | high
 ```
+
+| Key | Default | What it does |
+| --- | --- | --- |
+| `payment_paths` | `[]` (auto-detect) | Files and directories to scan, relative to the repository root. A listed directory is treated as payment code in full; `src/payments/**` is accepted as shorthand for `src/payments`. Paths that are absolute or leave the repository are rejected. |
+| `scenarios` | all `true` | `race_condition`, `float_drift`, `overflow_amount`. Unknown ids are ignored with a warning; a non-boolean value is an error. |
+| `sensitivity` | `medium` | Shifts every rule one level: `low` relaxes, `high` raises. Clamped to `low…high`, so a rule never disappears. |
+
+Invalid YAML, an unknown key, a bad sensitivity or a path outside the repository fails the run with a message that points at [SECURITY.md](SECURITY.md).
 
 ## 7. Local run
 
 ```bash
+# scan the current repository with ./.payfuzz.yml (if present)
 npx payfuzz
+
+# scan a subdirectory with an explicit config and report path
+npx payfuzz ./services/checkout -c .payfuzz.yml -o payfuzz-report.md
+
+# machine-readable output and a CI gate
+npx payfuzz --json --fail-on high
 ```
+
+| Flag | Default | What it does |
+| --- | --- | --- |
+| `[path]` | `.` | Repository root (or subdirectory) to scan. |
+| `-c, --config <path>` | `.payfuzz.yml` | Config file, relative to `[path]`. A missing default file just means defaults; a missing file you named is an error. |
+| `-o, --output <path>` | `payfuzz-report.md` | Where the Markdown report is written. `--json` writes the same data next to it as `.json`. |
+| `--fail-on <severity>` | `high` | Exit code `1` when a finding reaches this severity (`low`, `medium`, `high` or `never`). |
+| `--sensitivity <level>` | from config | Override `sensitivity` for this run. |
+
+Exit code is `0` for a clean run or findings below `--fail-on`, and `1` for a gate failure or any error. Reports are the only files PayFuzz writes.
 
 ## 8. Security FAQ
 
