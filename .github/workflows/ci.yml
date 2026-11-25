@@ -32,3 +32,65 @@ jobs:
 
       - name: Tests with coverage
         run: npm run test:coverage
+
+  dist:
+    name: Committed dist matches source
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - name: Rebuild the bundles
+        run: npm run build
+
+      - name: Fail if dist/ differs from the committed bundle
+        run: |
+          if [ -n "$(git status --porcelain -- dist/)" ]; then
+            echo "::error::dist/ is stale. Run 'npm run build' and commit the result."
+            git status --porcelain -- dist/
+            git --no-pager diff --stat -- dist/
+            exit 1
+          fi
+          echo "dist/ matches a fresh build."
+
+  action:
+    name: Bundled action on examples/wallet-sample
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # No npm ci here on purpose: dist/index.js bundles its dependencies, exactly as the
+      # node20 Action runner executes it.
+      - name: Run the committed bundle
+        working-directory: examples/wallet-sample
+        env:
+          INPUT_CONFIG-PATH: .payfuzz.yml
+          INPUT_FAIL-ON: none
+          INPUT_COMMENT-ON-PR: 'false'
+        # GitHub forbids overriding GITHUB_* variables, so unset it: the action then scans its cwd,
+        # which working-directory has pointed at the example project.
+        run: env -u GITHUB_WORKSPACE node ../../dist/index.js
+
+      - name: Fail if no report was produced
+        run: |
+          report="examples/wallet-sample/payfuzz-report.md"
+          if [ ! -s "$report" ]; then
+            echo "::error::The bundled action produced no report at $report"
+            exit 1
+          fi
+          if ! grep -q '<!-- payfuzz-report -->' "$report"; then
+            echo "::error::The report at $report is missing the PayFuzz marker"
+            exit 1
+          fi
+          if ! grep -q 'PF-' "$report"; then
+            echo "::error::The report contains no findings for the known-buggy wallet sample"
+            exit 1
+          fi
+          findings=$(grep -oE 'PF-[A-Z]+-[0-9]+' "$report" | wc -l)
+          echo "Report produced with $findings finding entries."
