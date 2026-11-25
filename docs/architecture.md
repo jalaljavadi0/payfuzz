@@ -1,6 +1,6 @@
 # Architecture
 
-> Skeleton. This document grows with the implementation (Phases 2–6).
+> Complete for the `v0.1.0` MVP. Both entry points below are built into committed bundles by `npm run build`.
 
 ## Shape
 
@@ -8,6 +8,10 @@
 Action (dist/index.js)  ─┐
 CLI (dist/cli.js)       ─┴─> loadConfig ─> findPaymentFiles ─> scenarios ─> report (md + json)
 ```
+
+The action entry reads its inputs from `action.yml` (`config-path`, `fail-on`, `comment-on-pr`),
+writes `payfuzz-report.md` into `GITHUB_WORKSPACE`, exposes it as the `report-path` output, and
+optionally updates its own pull request comment.
 
 ## Rules the architecture must keep
 

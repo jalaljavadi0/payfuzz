@@ -16,7 +16,7 @@ _Before the attacker, break your own payment logic._
 
 A payment-logic fuzzer and attack simulator that runs in your CI — never touches real money, real keys, or your wallet.
 
-> **Status:** Phase 5 of the MVP — payment-file detection, all three scenarios (float drift, race condition, negative/overflow amount), `.payfuzz.yml`, the local CLI, a vitest suite with an 80% coverage gate, and runnable `examples/` all work. Bundling (`dist/`) and the Action wiring land in Phase 6.
+> **Status:** MVP complete — released as `v0.1.0`. Payment-file detection, all three scenarios (float drift, race condition, negative/overflow amount), `.payfuzz.yml`, the local CLI, a vitest suite with an 80% coverage gate, runnable `examples/`, and the bundled GitHub Action (`dist/index.js`) all work.
 
 ---
 
@@ -54,13 +54,28 @@ PayFuzz never receives a request from your CI, and your CI never sends one out.
 
 ## 3. Install and quick start
 
-Added with the working CLI and action in later phases. The intended shape:
+Add the action to a workflow. It needs no key, no secret and no network access beyond the optional PR comment:
 
 ```yaml
-- uses: jalaljavadi166-netizen/payfuzz@v0
-  with:
-    fail-on: high
+name: PayFuzz
+on: pull_request
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  payfuzz:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jalaljavadi166-netizen/payfuzz@v0.1.0
+        with:
+          fail-on: high # none | low | medium | high
+          comment-on-pr: true
 ```
+
+The report is written to `payfuzz-report.md` in the workspace and its path is exposed as the `report-path` output. Pin the tag (`@v0.1.0`) — or a full commit SHA — rather than a moving branch.
 
 ## 4. Example report
 
