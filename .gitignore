@@ -2,6 +2,9 @@ node_modules/
 coverage/
 *.log
 
+# Scratch repositories created by the test suite
+tests/.tmp-*
+
 # PayFuzz only ever writes a report next to the run
 payfuzz-report.md
 payfuzz-report.json

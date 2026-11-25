@@ -46,10 +46,7 @@ const MONEY_EQUALITY: Rule = {
   fix: 'Compare integer minor units, or compare with an explicit tolerance: `Math.abs(a - b) < 0.005`. Never use `===`/`==` on money amounts.',
 };
 
-const ARITHMETIC_OPERATORS = new Set<SyntaxKind>([
-  SyntaxKind.PlusToken,
-  SyntaxKind.MinusToken,
-]);
+const ARITHMETIC_OPERATORS = new Set<SyntaxKind>([SyntaxKind.PlusToken, SyntaxKind.MinusToken]);
 
 const COMPOUND_ARITHMETIC_OPERATORS = new Set<SyntaxKind>([
   SyntaxKind.PlusEqualsToken,
@@ -176,7 +173,10 @@ function holdsMoney(node: Node): boolean {
     if (Node.isIdentifier(descendant) && isMoneyIdentifier(descendant.getText())) {
       found = true;
       traversal.stop();
-    } else if (Node.isPropertyAccessExpression(descendant) && isMoneyIdentifier(descendant.getName())) {
+    } else if (
+      Node.isPropertyAccessExpression(descendant) &&
+      isMoneyIdentifier(descendant.getName())
+    ) {
       found = true;
       traversal.stop();
     }

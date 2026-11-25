@@ -65,7 +65,8 @@ export const STRONG_CONTENT_MARKERS: readonly ContentMarker[] = [
     reason: 'Stripe PaymentIntent API',
   },
   {
-    pattern: /\.(charges|refunds|transfers|paymentIntents|payouts)\.(create|retrieve|capture|confirm)/,
+    pattern:
+      /\.(charges|refunds|transfers|paymentIntents|payouts)\.(create|retrieve|capture|confirm)/,
     reason: 'payment provider API call',
   },
   {

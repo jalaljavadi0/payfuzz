@@ -1,9 +1,17 @@
-import { Node, SyntaxKind, type FunctionDeclaration, type FunctionExpression, type ArrowFunction, type MethodDeclaration } from 'ts-morph';
+import {
+  Node,
+  SyntaxKind,
+  type FunctionDeclaration,
+  type FunctionExpression,
+  type ArrowFunction,
+  type MethodDeclaration,
+} from 'ts-morph';
 import { isMonetaryIdentifier } from '../detectors/patterns';
 import { unwrap } from './ast';
 
 /** Every function-shaped node PayFuzz inspects. */
-export type FunctionLike = FunctionDeclaration | FunctionExpression | ArrowFunction | MethodDeclaration;
+export type FunctionLike =
+  FunctionDeclaration | FunctionExpression | ArrowFunction | MethodDeclaration;
 
 const FUNCTION_LIKE_KINDS = new Set<SyntaxKind>([
   SyntaxKind.FunctionDeclaration,
@@ -78,5 +86,8 @@ export function isSharedTarget(node: Node): boolean {
   return target
     .getSourceFile()
     .getVariableDeclarations()
-    .some((declaration) => declaration.getName() === name && enclosingFunction(declaration) === undefined);
+    .some(
+      (declaration) =>
+        declaration.getName() === name && enclosingFunction(declaration) === undefined,
+    );
 }

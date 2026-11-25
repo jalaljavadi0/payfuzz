@@ -1,0 +1,121 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`renderMarkdownReport > snapshots the report for the sample fixtures 1`] = `
+"<!-- payfuzz-report -->
+
+# PayFuzz report
+
+> Simulated in memory on your CI runner. PayFuzz parsed your source — it did not execute it, did not read a key, and did not move money. Security model: [SECURITY.md](SECURITY.md).
+
+**3 high · 3 medium · 0 low** — 6 findings in 2 files.
+
+Scanned **2** payment files at sensitivity \`medium\` with PayFuzz \`0.1.0\`.
+
+## Summary
+
+| # | Severity | Scenario | Location | Finding |
+| --- | --- | --- | --- | --- |
+| 1 | 🔴 high | \`overflow_amount\` | \`stripe-checkout.ts:12:57\` | Monetary amount accepted without a range check |
+| 2 | 🔴 high | \`race_condition\` | \`stripe-checkout.ts:15:7\` | Check-then-act on a balance (TOCTOU) |
+| 3 | 🔴 high | \`float_drift\` | \`wallet-balance.ts:15:12\` | Decimal literal arithmetic on money |
+| 4 | 🟠 medium | \`overflow_amount\` | \`wallet-balance.ts:9:11\` | Monetary amount accepted without a range check |
+| 5 | 🟠 medium | \`race_condition\` | \`wallet-balance.ts:10:5\` | Read-modify-write on a shared balance |
+| 6 | 🟠 medium | \`float_drift\` | \`wallet-balance.ts:10:20\` | Money amount arithmetic on a floating point number |
+
+## Findings
+
+### 1. 🔴 high — Monetary amount accepted without a range check
+
+**Scenario:** \`overflow_amount\` · **Rule:** \`PF-OVERFLOW-001\` · **Location:** \`stripe-checkout.ts:12:57\`
+
+\`\`\`ts
+amount: number
+\`\`\`
+
+**Simulated:** no sign or range check found for \`amount\` before it reaches an awaited write
+
+**Financial risk:** A negative or oversized amount flows straight into the money path. \`-100\` turns a charge into a credit and inflates the payer, an amount above \`Number.MAX_SAFE_INTEGER\` silently rounds to a different number, and \`NaN\` propagates through every total it touches.
+
+**Suggested fix:** Validate at the boundary before any arithmetic: \`Number.isSafeInteger(amountCents) && amountCents > 0 && amountCents <= MAX_AMOUNT\`, or a schema such as \`z.number().int().positive().max(MAX_AMOUNT)\`. Reject with a 4xx and never fetch a balance first.
+
+### 2. 🔴 high — Check-then-act on a balance (TOCTOU)
+
+**Scenario:** \`race_condition\` · **Rule:** \`PF-RACE-002\` · **Location:** \`stripe-checkout.ts:15:7\`
+
+\`\`\`ts
+account.balance >= amount
+\`\`\`
+
+**Simulated:** two requests can pass this guard before either write lands, so the same balance is spent twice
+
+**Financial risk:** The guard reads a balance, then the function awaits a write. Between the check and the write another request can spend the same funds: both pass \`balance >= amount\`, both charge, and the account ends up negative — or the same invoice is paid twice.
+
+**Suggested fix:** Make the check part of the write: a conditional atomic update, a unique constraint or idempotency key on the charge, or one transaction that holds the row lock from the read to the commit.
+
+### 3. 🔴 high — Decimal literal arithmetic on money
+
+**Scenario:** \`float_drift\` · **Rule:** \`PF-FLOAT-001\` · **Location:** \`wallet-balance.ts:15:12\`
+
+\`\`\`ts
+0.1 + 0.2
+\`\`\`
+
+**Simulated:** \`0.1 + 0.2\` evaluates to \`0.30000000000000004\`
+
+**Financial risk:** Binary floating point cannot represent most decimal amounts exactly: in JavaScript \`0.1 + 0.2\` is \`0.30000000000000004\`. Once a total drifts, it stops reconciling with the payment provider, so the app can under-charge a customer, over-refund one, or leave a balance that never reaches zero.
+
+**Suggested fix:** Keep money in integer minor units (cents, paise, satoshi) and do the arithmetic on integers. Format only at the edge: \`(amountCents / 100).toFixed(2)\`. If decimals are unavoidable, use an exact decimal type such as \`decimal.js\` or \`dinero.js\` instead of \`number\`.
+
+### 4. 🟠 medium — Monetary amount accepted without a range check
+
+**Scenario:** \`overflow_amount\` · **Rule:** \`PF-OVERFLOW-001\` · **Location:** \`wallet-balance.ts:9:11\`
+
+\`\`\`ts
+amount: number
+\`\`\`
+
+**Simulated:** no sign or range check found for \`amount\`
+
+**Financial risk:** A negative or oversized amount flows straight into the money path. \`-100\` turns a charge into a credit and inflates the payer, an amount above \`Number.MAX_SAFE_INTEGER\` silently rounds to a different number, and \`NaN\` propagates through every total it touches.
+
+**Suggested fix:** Validate at the boundary before any arithmetic: \`Number.isSafeInteger(amountCents) && amountCents > 0 && amountCents <= MAX_AMOUNT\`, or a schema such as \`z.number().int().positive().max(MAX_AMOUNT)\`. Reject with a 4xx and never fetch a balance first.
+
+### 5. 🟠 medium — Read-modify-write on a shared balance
+
+**Scenario:** \`race_condition\` · **Rule:** \`PF-RACE-001\` · **Location:** \`wallet-balance.ts:10:5\`
+
+\`\`\`ts
+this.balance = this.balance + amount
+\`\`\`
+
+**Simulated:** two concurrent reads of \`100\` both compute \`100 - 30 = 70\` and both write \`70\`, so one withdrawal of 30 vanishes
+
+**Financial risk:** Two concurrent requests can read the same balance, each compute a new total from that same value, and both write it back. The later write silently erases the earlier one: a withdrawal never leaves the balance (free money) or a deposit disappears from the ledger.
+
+**Suggested fix:** Let the database do the arithmetic atomically: \`UPDATE accounts SET balance = balance - $1 WHERE id = $2 AND balance >= $1\`, then act on the affected-row count. Alternatively hold a row lock for the whole read-modify-write (\`SELECT … FOR UPDATE\`) or use an optimistic \`version\` column.
+
+### 6. 🟠 medium — Money amount arithmetic on a floating point number
+
+**Scenario:** \`float_drift\` · **Rule:** \`PF-FLOAT-002\` · **Location:** \`wallet-balance.ts:10:20\`
+
+\`\`\`ts
+this.balance + amount
+\`\`\`
+
+**Financial risk:** Every \`+\`/\`-\` on a \`number\` that holds money can introduce a rounding error, and the error compounds with volume. Fractions of a cent drift between your ledger and your provider, which surfaces later as failed reconciliation, short payouts or duplicate refunds.
+
+**Suggested fix:** Convert input into integer minor units once (\`Math.round(parseFloat(value) * 100)\`), keep every balance and total integral, and convert back only for display or for the provider API.
+
+<details>
+<summary>Files scanned (2)</summary>
+
+- \`stripe-checkout.ts\`
+- \`wallet-balance.ts\`
+
+</details>
+
+---
+
+<sub>Generated by PayFuzz \`0.1.0\` at 2024-01-01T00:00:00.000Z · 2 payment files scanned · no code executed, no network calls, no keys read.<br />Found a security problem in PayFuzz itself? See [SECURITY.md](SECURITY.md).</sub>
+"
+`;

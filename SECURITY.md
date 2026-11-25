@@ -9,8 +9,8 @@ other way around.
 
 ## Supported versions
 
-| Version | Supported |
-| --- | --- |
+| Version             | Supported              |
+| ------------------- | ---------------------- |
 | `0.x` (pre-release) | Yes, latest `0.x` only |
 
 ## What PayFuzz is allowed to touch

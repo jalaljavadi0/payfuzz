@@ -1,0 +1,7 @@
+payment_paths:
+  - src
+scenarios:
+  race_condition: true
+  float_drift: true
+  overflow_amount: true
+sensitivity: medium

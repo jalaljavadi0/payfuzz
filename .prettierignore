@@ -1,0 +1,9 @@
+node_modules/
+dist/
+coverage/
+package-lock.json
+*.log
+
+# Reports are generated, never edited.
+payfuzz-report.md
+payfuzz-report.json

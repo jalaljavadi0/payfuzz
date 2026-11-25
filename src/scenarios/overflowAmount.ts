@@ -48,7 +48,8 @@ const UNVALIDATED_PARSE: Rule = {
 
 const PARSER_CALLS = new Set(['parseFloat', 'parseInt', 'Number']);
 
-const USER_INPUT_HINT = /(^|[^A-Za-z0-9_$])(req|request|body|query|params|payload|form|formData|input|webhook|event|message|data)([^A-Za-z0-9_$]|$)/;
+const USER_INPUT_HINT =
+  /(^|[^A-Za-z0-9_$])(req|request|body|query|params|payload|form|formData|input|webhook|event|message|data)([^A-Za-z0-9_$]|$)/;
 
 export function analyzeOverflowAmount(context: ScenarioContext): Finding[] {
   const findings = [
@@ -70,9 +71,12 @@ function findUnguardedAmounts(context: ScenarioContext): Finding[] {
     if (!isNumericParameter(parameter)) continue;
 
     const fn = parameter.getFirstAncestor((candidate) =>
-      [SyntaxKind.FunctionDeclaration, SyntaxKind.FunctionExpression, SyntaxKind.ArrowFunction, SyntaxKind.MethodDeclaration].includes(
-        candidate.getKind(),
-      ),
+      [
+        SyntaxKind.FunctionDeclaration,
+        SyntaxKind.FunctionExpression,
+        SyntaxKind.ArrowFunction,
+        SyntaxKind.MethodDeclaration,
+      ].includes(candidate.getKind()),
     ) as FunctionLike | undefined;
     if (fn === undefined) continue;
 
@@ -178,9 +182,9 @@ function calleeName(call: CallExpression): string {
 }
 
 function hasMonetaryIdentifier(node: Node): boolean {
-  return node.getDescendantsOfKind(SyntaxKind.Identifier).some((identifier) =>
-    monetaryNameOf(identifier) !== undefined,
-  );
+  return node
+    .getDescendantsOfKind(SyntaxKind.Identifier)
+    .some((identifier) => monetaryNameOf(identifier) !== undefined);
 }
 
 function assignedName(call: CallExpression): string | undefined {
@@ -191,7 +195,11 @@ function assignedName(call: CallExpression): string | undefined {
     if (Node.isVariableDeclaration(parent) && Node.isIdentifier(parent.getNameNode())) {
       return parent.getName();
     }
-    if (Node.isAwaitExpression(parent) || Node.isParenthesizedExpression(parent) || Node.isAsExpression(parent)) {
+    if (
+      Node.isAwaitExpression(parent) ||
+      Node.isParenthesizedExpression(parent) ||
+      Node.isAsExpression(parent)
+    ) {
       current = parent;
       continue;
     }
@@ -202,9 +210,12 @@ function assignedName(call: CallExpression): string | undefined {
 
 function unwindFunction(node: Node): FunctionLike | undefined {
   const ancestor = node.getFirstAncestor((candidate) =>
-    [SyntaxKind.FunctionDeclaration, SyntaxKind.FunctionExpression, SyntaxKind.ArrowFunction, SyntaxKind.MethodDeclaration].includes(
-      candidate.getKind(),
-    ),
+    [
+      SyntaxKind.FunctionDeclaration,
+      SyntaxKind.FunctionExpression,
+      SyntaxKind.ArrowFunction,
+      SyntaxKind.MethodDeclaration,
+    ].includes(candidate.getKind()),
   );
   return ancestor as FunctionLike | undefined;
 }
@@ -235,9 +246,12 @@ function hasNumericGuard(fn: FunctionLike, name: string): boolean {
     const text = call.getText();
     if (!readsName(call, name)) continue;
     const callee = call.getExpression().getText();
-    if (/^(Number\.(isFinite|isInteger|isSafeInteger|isNaN)|isFinite|isNaN)$/.test(callee)) return true;
-    if (/^(assert|require|validate|check|ensure|guard|verify|invariant|reject)/i.test(callee)) return true;
-    if (/\.(positive|nonnegative|nonNegative|int|finite|safeInteger|min|max)\(/.test(text)) return true;
+    if (/^(Number\.(isFinite|isInteger|isSafeInteger|isNaN)|isFinite|isNaN)$/.test(callee))
+      return true;
+    if (/^(assert|require|validate|check|ensure|guard|verify|invariant|reject)/i.test(callee))
+      return true;
+    if (/\.(positive|nonnegative|nonNegative|int|finite|safeInteger|min|max)\(/.test(text))
+      return true;
   }
 
   return false;

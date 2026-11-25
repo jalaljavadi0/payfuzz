@@ -72,14 +72,18 @@ export async function findPaymentFiles(
       try {
         stats = await fs.stat(absolutePath);
       } catch {
-        throw new Error(`Configured payment path \`${entry}\` does not exist under \`${rootDir}\`.`);
+        throw new Error(
+          `Configured payment path \`${entry}\` does not exist under \`${rootDir}\`.`,
+        );
       }
 
       if (stats.isDirectory()) {
         directories.push(entry);
       } else if (stats.isFile()) {
         if (!isSourcePath(entry)) {
-          throw new Error(`Configured payment path \`${entry}\` is not a source file PayFuzz can scan.`);
+          throw new Error(
+            `Configured payment path \`${entry}\` is not a source file PayFuzz can scan.`,
+          );
         }
         if (files.size >= maxFiles) {
           truncated = true;
@@ -148,10 +152,7 @@ async function reasonsFor(
 }
 
 function normalizeIncludePath(entry: string): string {
-  return entry
-    .replace(/\\/g, '/')
-    .replace(/\/+$/, '')
-    .replace(/^\.\//, '');
+  return entry.replace(/\\/g, '/').replace(/\/+$/, '').replace(/^\.\//, '');
 }
 
 /** Resolve a configured path and refuse anything that escapes the scanned root. */

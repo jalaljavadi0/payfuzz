@@ -83,7 +83,8 @@ const COMPARISON_OPERATORS = new Set<SyntaxKind>([
 ]);
 
 /** Calls that move money or persist state — the "act" half of check-then-act. */
-const WRITE_CALL = /(update|save|write|set|put|patch|charge|capture|transfer|credit|debit|increment|decrement|refund|withdraw|deposit|payout|create|settle)/i;
+const WRITE_CALL =
+  /(update|save|write|set|put|patch|charge|capture|transfer|credit|debit|increment|decrement|refund|withdraw|deposit|payout|create|settle)/i;
 
 export function analyzeRaceConditions(context: ScenarioContext): Finding[] {
   const findings = [
@@ -370,7 +371,8 @@ function writesBack(call: CallExpression, name: string): boolean {
 
   const calleeName = calleeText(call).replace(/[^A-Za-z0-9_$]/g, '');
   return (
-    isMonetaryIdentifier(calleeName) && call.getArguments().some((argument) => readsName(argument, name))
+    isMonetaryIdentifier(calleeName) &&
+    call.getArguments().some((argument) => readsName(argument, name))
   );
 }
 
@@ -388,7 +390,10 @@ function hasMonetaryProperty(node: Node, name: string): boolean {
 }
 
 function containsArithmetic(node: Node): boolean {
-  if (Node.isBinaryExpression(node) && ARITHMETIC_OPERATORS.has(node.getOperatorToken().getKind())) {
+  if (
+    Node.isBinaryExpression(node) &&
+    ARITHMETIC_OPERATORS.has(node.getOperatorToken().getKind())
+  ) {
     return true;
   }
   return node
@@ -417,7 +422,11 @@ function awaitsMoneyWrite(statement: IfStatement): boolean {
   );
 }
 
-function hasInterveningAwait(fn: FunctionLike, afterPosition: number, call: CallExpression): boolean {
+function hasInterveningAwait(
+  fn: FunctionLike,
+  afterPosition: number,
+  call: CallExpression,
+): boolean {
   return fn.getDescendantsOfKind(SyntaxKind.AwaitExpression).some((awaited) => {
     if (awaited.getStart() <= afterPosition) return false;
     if (awaited.getEnd() > call.getStart()) return false;

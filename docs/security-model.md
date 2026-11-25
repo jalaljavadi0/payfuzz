@@ -4,14 +4,14 @@
 
 ## Invariants
 
-| Invariant | Enforced by |
-| --- | --- |
-| No live keys, private keys, seed phrases or wallets | No credential inputs exist in `action.yml`; no network client in `src/` |
-| No code leaves the runner | No HTTP client except the GitHub API wrapper used for PR comments |
-| No writes to the user's repository | Report files only; workflow permissions are `contents: read`, `pull-requests: write` |
-| Dry-run by default | Config default `dry_run: true`; scenarios simulate in memory |
-| Fully open source, MIT | [LICENSE](../LICENSE) |
-| Signed releases | cosign/Sigstore keyless signing in the release workflow (roadmap) |
+| Invariant                                           | Enforced by                                                                          |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| No live keys, private keys, seed phrases or wallets | No credential inputs exist in `action.yml`; no network client in `src/`              |
+| No code leaves the runner                           | No HTTP client except the GitHub API wrapper used for PR comments                    |
+| No writes to the user's repository                  | Report files only; workflow permissions are `contents: read`, `pull-requests: write` |
+| Dry-run by default                                  | Config default `dry_run: true`; scenarios simulate in memory                         |
+| Fully open source, MIT                              | [LICENSE](../LICENSE)                                                                |
+| Signed releases                                     | cosign/Sigstore keyless signing in the release workflow (roadmap)                    |
 
 ## Trust boundaries
 

@@ -15,10 +15,7 @@ export function positionOf(node: Node): SourceLocation {
 
 /** The node's source text on one line, truncated so a report stays readable. */
 export function snippetOf(node: Node, maxLength = 160): string {
-  const text = node
-    .getText()
-    .replace(/\s+/g, ' ')
-    .trim();
+  const text = node.getText().replace(/\s+/g, ' ').trim();
   return text.length <= maxLength ? text : `${text.slice(0, maxLength - 1)}…`;
 }
 

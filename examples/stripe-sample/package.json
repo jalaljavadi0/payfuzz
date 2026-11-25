@@ -1,0 +1,13 @@
+{
+  "name": "payfuzz-example-stripe",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "PayFuzz example: a Stripe checkout with an intentional race condition.",
+  "scripts": {
+    "scan": "payfuzz ."
+  },
+  "dependencies": {
+    "stripe": "^16.12.0"
+  }
+}
