@@ -75,7 +75,14 @@ jobs:
           comment-on-pr: true
 ```
 
-The report is written to `payfuzz-report.md` in the workspace and its path is exposed as the `report-path` output. Pin the tag (`@v0.1.0`) — or a full commit SHA — rather than a moving branch.
+The report is written to `payfuzz-report.md` in the workspace and its path is exposed as the `report-path` output.
+
+**Pin the action to a release tag.** Use `jalaljavadi166-netizen/payfuzz@v0.1.0`, or a full commit
+SHA if you want the strictest supply-chain guarantee. PayFuzz does not publish a moving `@v0` tag,
+so `@main` can change between runs without you noticing. Because `dist/` is committed, the tag you
+pin is the exact bundle your workflow executes, and CI rebuilds that bundle on every `v*` tag to
+prove it still matches the source. Upgrade deliberately: bump the tag when you have reviewed the
+release notes.
 
 ## 4. Example report
 
