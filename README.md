@@ -190,7 +190,7 @@ See [SECURITY.md](SECURITY.md) for the threat model. Short answers:
 
 ## 9. Contributing & Sponsorship
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) (added with the test suite) for the workflow, and [docs/security-model.md](docs/security-model.md) for the rules a contribution must not break.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, the checks to run and how to add a scenario, and [docs/security-model.md](docs/security-model.md) for the rules a contribution must not break.
 
 | Tier           | Price     | What you get                                                                |
 | -------------- | --------- | --------------------------------------------------------------------------- |
